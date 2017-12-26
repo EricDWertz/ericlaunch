@@ -46,6 +46,7 @@ gboolean windowed;
 GdkPixbuf* get_app_icon(const char* name,int size)
 {
     GdkPixbuf* out;
+    int width, height;
 	GtkIconTheme* theme=gtk_icon_theme_get_default();
 	out = gtk_icon_theme_load_icon(theme,name,size,0,NULL);
     
@@ -55,6 +56,20 @@ GdkPixbuf* get_app_icon(const char* name,int size)
     if( !GDK_IS_PIXBUF( out ) )
     {
         out = gtk_icon_theme_load_icon( theme, "application-x-executable", size, 0, NULL );
+    }
+
+    //Check/fix size
+    width = gdk_pixbuf_get_width( out );
+    height = gdk_pixbuf_get_height( out );
+
+    if (width != size || height != size) 
+    {
+        GdkPixbuf* temp = out;
+        out = gdk_pixbuf_scale_simple(temp,
+                                         size,
+                                         size,
+                                         GDK_INTERP_HYPER);
+        g_object_unref(temp);
     }
 
     return out;
@@ -368,6 +383,11 @@ void parse_desktop_entry(const char* name)
     sprintf( buffer, "/usr/share/applications/%s", name );
     printf( "%s\n", buffer );
     if( !g_key_file_load_from_file( key_file, buffer, G_KEY_FILE_NONE, NULL ) )
+    {
+        return;
+    }
+
+    if( g_key_file_get_string( key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NO_DISPLAY, NULL ) )
     {
         return;
     }
