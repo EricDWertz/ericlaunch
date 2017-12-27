@@ -159,9 +159,9 @@ static gboolean draw_entry( GtkWidget* widget, cairo_t* cr, gpointer user_data )
 
 gboolean icon_mouse_enter( GtkWidget* widget, GdkEvent* event, gpointer user )
 {
-	LAUNCHER_APP_ICON* icon=(LAUNCHER_APP_ICON*)user;
-    icon->hover = TRUE;
-    gtk_widget_queue_draw( icon->area );
+	//LAUNCHER_APP_ICON* icon=(LAUNCHER_APP_ICON*)user;
+    //icon->hover = TRUE;
+    //gtk_widget_queue_draw( icon->area );
     
     return FALSE;
 }
@@ -172,6 +172,30 @@ gboolean icon_mouse_leave( GtkWidget* widget, GdkEvent* event, gpointer user )
     icon->hover = FALSE;
     gtk_widget_queue_draw( icon->area );
     
+    return FALSE;
+}
+
+gboolean icon_mouse_move( GtkWidget* widget, GdkEvent* event, gpointer user )
+{
+	LAUNCHER_APP_ICON* icon=(LAUNCHER_APP_ICON*)user;
+	GdkEventMotion* ev=(GdkEventMotion*)event;
+    int changedstate = FALSE;
+
+	if(ev->x > ICON_SIZE/8 && ev->x < ICON_SIZE &&
+		ev->y > ICON_SIZE/8 && ev->y < ICON_SIZE)
+	{
+		if(icon->hover==FALSE) changedstate=TRUE;
+		icon->hover=TRUE;
+	}
+	else
+	{
+		if(icon->hover==TRUE) changedstate=TRUE;
+		icon->hover=FALSE;
+	}
+
+    if( changedstate )
+        gtk_widget_queue_draw( icon->area );
+
     return FALSE;
 }
 
@@ -205,19 +229,22 @@ GFunc layout_app_icon(gpointer data,gpointer user)
 	icon->y=icon_layout_y;
 
     icon->area = gtk_drawing_area_new();
-    gtk_widget_set_size_request( icon->area, icon_layout_stride_x, icon_layout_stride_y );
+    gtk_widget_set_size_request( icon->area, ICON_SIZE*1.25, ICON_SIZE*1.25 );
     gtk_widget_add_events( icon->area, GDK_POINTER_MOTION_MASK 
             | GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK 
             | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK );
     g_signal_connect( G_OBJECT( icon->area ), "draw", G_CALLBACK( draw_app_icon ), (void*)icon );
     g_signal_connect( G_OBJECT( icon->area ), "enter-notify-event", G_CALLBACK(icon_mouse_enter), (void*)icon );
     g_signal_connect( G_OBJECT( icon->area ), "leave-notify-event", G_CALLBACK(icon_mouse_leave), (void*)icon );
+    g_signal_connect( G_OBJECT( icon->area ), "motion-notify-event", G_CALLBACK(icon_mouse_move), (void*)icon );
     g_signal_connect( G_OBJECT( icon->area ), "button-release-event", G_CALLBACK(icon_button_release), (void*)icon );
 
     pango_layout_set_alignment( icon->layout, PANGO_ALIGN_CENTER );
     pango_layout_set_width( icon->layout, (int)(ICON_SIZE*0.99) * PANGO_SCALE );
+    pango_layout_set_height( icon->layout, (int)(ICON_SIZE*0.4) * PANGO_SCALE );
 	pango_layout_set_text( icon->layout, icon->name, strlen(icon->name) );
     pango_layout_get_pixel_size( icon->layout, &icon->layout_width, NULL );
+    pango_layout_set_ellipsize( icon->layout, PANGO_ELLIPSIZE_END );
 	
 	icon_layout_x+=icon_layout_stride_x;
 	if(icon_layout_x>icon_layout_max_x) 
@@ -236,8 +263,6 @@ GFunc layout_container_attach( gpointer data, gpointer user )
     GtkWidget* container = (GtkWidget*)user;
 
     gtk_fixed_put( GTK_FIXED( container ), icon->area, icon->x - ICON_SIZE/8, icon->y - ICON_SIZE/8 );
-
-    printf( "Attached" );
 
     return 0;
 }
@@ -376,7 +401,6 @@ void exec_strip_chars( gchar* exec )
 
 void parse_desktop_entry(const char* name)
 {
-    //TODO: Make sure to strip out arguments from Exec strings
     char buffer[256];
     GKeyFile* key_file = g_key_file_new();
 
@@ -387,7 +411,7 @@ void parse_desktop_entry(const char* name)
         return;
     }
 
-    if( g_key_file_get_string( key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NO_DISPLAY, NULL ) )
+    if( g_key_file_get_boolean( key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NO_DISPLAY, NULL ) )
     {
         return;
     }
