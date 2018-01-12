@@ -144,7 +144,7 @@ static gboolean draw_app_icon( GtkWidget* widget, cairo_t* cr, gpointer user )
 
     cairo_fill(cr);
 
-    return FALSE;
+    return TRUE;
 }   
 
 static gboolean draw_entry( GtkWidget* widget, cairo_t* cr, gpointer user_data )
@@ -205,6 +205,7 @@ gboolean icon_button_release( GtkWidget* widget,GdkEvent* event,gpointer user )
 
     char buffer[250];
     sprintf(buffer,"%s &",icon->launch_command);
+    printf( "%s \n", buffer );
     system(buffer);
     gtk_main_quit();
 
@@ -228,16 +229,17 @@ GFunc layout_app_icon(gpointer data,gpointer user)
 	icon->x=icon_layout_x;
 	icon->y=icon_layout_y;
 
-    icon->area = gtk_drawing_area_new();
+    icon->area = gtk_button_new();
     gtk_widget_set_size_request( icon->area, ICON_SIZE*1.25, ICON_SIZE*1.25 );
     gtk_widget_add_events( icon->area, GDK_POINTER_MOTION_MASK 
             | GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK 
             | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK );
+    gtk_widget_set_app_paintable( icon->area, TRUE );
     g_signal_connect( G_OBJECT( icon->area ), "draw", G_CALLBACK( draw_app_icon ), (void*)icon );
     g_signal_connect( G_OBJECT( icon->area ), "enter-notify-event", G_CALLBACK(icon_mouse_enter), (void*)icon );
     g_signal_connect( G_OBJECT( icon->area ), "leave-notify-event", G_CALLBACK(icon_mouse_leave), (void*)icon );
     g_signal_connect( G_OBJECT( icon->area ), "motion-notify-event", G_CALLBACK(icon_mouse_move), (void*)icon );
-    g_signal_connect( G_OBJECT( icon->area ), "button-release-event", G_CALLBACK(icon_button_release), (void*)icon );
+    g_signal_connect( G_OBJECT( icon->area ), "clicked", G_CALLBACK(icon_button_release), (void*)icon );
 
     pango_layout_set_alignment( icon->layout, PANGO_ALIGN_CENTER );
     pango_layout_set_width( icon->layout, (int)(ICON_SIZE*0.99) * PANGO_SCALE );
@@ -466,12 +468,6 @@ void do_layout_windowed(int width,int height)
 	WINDOW_HEIGHT=height;
 }
 
-gboolean entry_lose_focus(GtkWidget* widget,GdkEvent* event, gpointer user)
-{
-	gtk_main_quit();
-	return TRUE;	
-}
-
 //Command line arguments
 // -w is windowed mode
 // -p X Y is windowed mode position
@@ -524,6 +520,7 @@ int main(int argc, char **argv)
     
     gtk_widget_add_events( window->window, GDK_POINTER_MOTION_MASK | GDK_BUTTON_RELEASE_MASK );
     g_signal_connect( G_OBJECT( window->window ), "key-press-event", G_CALLBACK(window_key_press), NULL);
+    g_signal_connect( G_OBJECT( window->window ), "focus-out-event", G_CALLBACK(gtk_main_quit), NULL );
     gtk_widget_set_size_request(window->window,WINDOW_WIDTH,WINDOW_HEIGHT);
 
     ICON_SIZE = SCALE_VALUE(ICON_SIZE);
@@ -564,7 +561,6 @@ int main(int argc, char **argv)
     gtk_widget_set_size_request(entry,WINDOW_WIDTH-ICON_SIZE/2,ICON_SIZE);
     //gtk_widget_set_app_paintable(entry, TRUE);
     g_signal_connect(G_OBJECT(entry), "draw", G_CALLBACK(draw_entry), NULL);
-    g_signal_connect(G_OBJECT(entry), "focus-out-event", G_CALLBACK(entry_lose_focus), NULL);
 
     GtkWidget* scrollable = gtk_scrolled_window_new( NULL, NULL );
     gtk_widget_add_events( scrollable, GDK_BUTTON_RELEASE_MASK );
