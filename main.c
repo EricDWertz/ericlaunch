@@ -26,11 +26,11 @@ typedef struct
 { 
     PangoLayout* layout;
     int layout_width;
-    char name[64];
+    gchar name[64];
 	double x;
 	double y;
 	GdkPixbuf* pixbuf;
-	char launch_command[128];
+	gchar launch_command[128];
 	gboolean hover;
     GtkWidget* area;
 } LAUNCHER_APP_ICON;
@@ -199,13 +199,13 @@ gboolean icon_mouse_move( GtkWidget* widget, GdkEvent* event, gpointer user )
     return FALSE;
 }
 
-gboolean icon_button_release( GtkWidget* widget,GdkEvent* event,gpointer user )
+gboolean icon_button_release( GtkWidget* widget, gpointer user )
 {
 	LAUNCHER_APP_ICON* icon=(LAUNCHER_APP_ICON*)user;
 
-    char buffer[250];
+    gchar buffer[250];
     sprintf(buffer,"%s &",icon->launch_command);
-    printf( "%s \n", buffer );
+    g_print( "%s: %s \n", icon->name, buffer );
     system(buffer);
     gtk_main_quit();
 
@@ -235,11 +235,11 @@ GFunc layout_app_icon(gpointer data,gpointer user)
             | GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK 
             | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK );
     gtk_widget_set_app_paintable( icon->area, TRUE );
-    g_signal_connect( G_OBJECT( icon->area ), "draw", G_CALLBACK( draw_app_icon ), (void*)icon );
-    g_signal_connect( G_OBJECT( icon->area ), "enter-notify-event", G_CALLBACK(icon_mouse_enter), (void*)icon );
-    g_signal_connect( G_OBJECT( icon->area ), "leave-notify-event", G_CALLBACK(icon_mouse_leave), (void*)icon );
-    g_signal_connect( G_OBJECT( icon->area ), "motion-notify-event", G_CALLBACK(icon_mouse_move), (void*)icon );
-    g_signal_connect( G_OBJECT( icon->area ), "clicked", G_CALLBACK(icon_button_release), (void*)icon );
+    g_signal_connect( G_OBJECT( icon->area ), "draw", G_CALLBACK( draw_app_icon ), (gpointer)icon );
+    g_signal_connect( G_OBJECT( icon->area ), "enter-notify-event", G_CALLBACK(icon_mouse_enter), (gpointer)icon );
+    g_signal_connect( G_OBJECT( icon->area ), "leave-notify-event", G_CALLBACK(icon_mouse_leave), (gpointer)icon );
+    g_signal_connect( G_OBJECT( icon->area ), "motion-notify-event", G_CALLBACK(icon_mouse_move), (gpointer)icon );
+    g_signal_connect( G_OBJECT( icon->area ), "clicked", G_CALLBACK(icon_button_release), (gpointer)icon );
 
     pango_layout_set_alignment( icon->layout, PANGO_ALIGN_CENTER );
     pango_layout_set_width( icon->layout, (int)(ICON_SIZE*0.99) * PANGO_SCALE );
@@ -289,6 +289,8 @@ void do_icon_layout()
 	icon_layout_x=icon_layout_margin;
 	icon_layout_y=icon_layout_margin;
 	//icon_layout_y=ICON_SIZE*1.5;
+
+    printf( "margin: %f; width: %f; x: %f; max_x: %f\n", icon_layout_margin, icon_layout_width, icon_layout_x, icon_layout_max_x );
 	
 	g_list_foreach(icon_list,(GFunc)layout_app_icon,NULL);
 }
@@ -407,7 +409,6 @@ void parse_desktop_entry(const char* name)
     GKeyFile* key_file = g_key_file_new();
 
     sprintf( buffer, "/usr/share/applications/%s", name );
-    printf( "%s\n", buffer );
     if( !g_key_file_load_from_file( key_file, buffer, G_KEY_FILE_NONE, NULL ) )
     {
         return;
@@ -424,7 +425,6 @@ void parse_desktop_entry(const char* name)
     exec_strip_chars( exec );
 
 
-    printf( "%s, %s, %s\n", app_name, icon_name, exec );
     add_app_icon(app_name,icon_name,exec);
 }
 	
@@ -466,6 +466,36 @@ void do_layout_windowed(int width,int height)
 {
 	WINDOW_WIDTH=width;
 	WINDOW_HEIGHT=height;
+}
+
+void load_user_icons()
+{
+    //TODO: actually get the real homedir
+    FILE* f = fopen( "/home/eric/.ericlaunch", "r" );
+    if( !f )
+        return;
+
+    char buffer[256];
+
+    char* name;
+    char* icon_name;
+    char* launch_command;
+    while( fgets( buffer, 256, f ) )
+    {
+        //sanitize newlines
+        for( int i = 0; i < strlen(buffer); i++ ) 
+            if( buffer[i] == '\n' )
+                buffer[i] = ' ';
+
+        name = strtok( buffer, "|" );
+        icon_name = strtok( NULL, "|" );
+        launch_command = strtok( NULL, "|" );
+
+        if( name != NULL && icon_name != NULL && launch_command != NULL )
+            add_app_icon( name, icon_name, launch_command );
+    }
+
+    fclose( f );
 }
 
 //Command line arguments
@@ -532,21 +562,23 @@ int main(int argc, char **argv)
 
     icon_list=NULL;
     //TODO: load custom file here...
-    parse_desktop_entry( "chromium.desktop" );
-    parse_desktop_entry( "xfce4-terminal.desktop" );
-    parse_desktop_entry( "libreoffice-writer.desktop" );
-    parse_desktop_entry( "libreoffice-calc.desktop" );
-    parse_desktop_entry( "Thunar.desktop" );
-    parse_desktop_entry( "steam.desktop" );
-    parse_desktop_entry( "xfce-settings-manager.desktop" );
-    parse_desktop_entry( "gnome-system-monitor.desktop" );
+    //parse_desktop_entry( "chromium.desktop" );
+    //parse_desktop_entry( "xfce4-terminal.desktop" );
+    //parse_desktop_entry( "libreoffice-writer.desktop" );
+    //parse_desktop_entry( "libreoffice-calc.desktop" );
+    //parse_desktop_entry( "Thunar.desktop" );
+    //parse_desktop_entry( "steam.desktop" );
+    //parse_desktop_entry( "xfce-settings-manager.desktop" );
+    //parse_desktop_entry( "gnome-system-monitor.desktop" );
     
     //TODO: load all desktop entries
     load_desktop_entries();
+    load_user_icons();
 
-    add_app_icon("WhatsApp","chromium","chromium --app=\"https://web.whatsapp.com\"");
-    add_app_icon("Notes","accessories-text-editor-symbolic","chromium --app=\"http://24.3.110.119/editor\"");
-    add_app_icon("Outlook","outlook","chromium --app=\"https://owa.linkcorp.com/owa\"");
+    //add_app_icon("WhatsApp","chromium","chromium --app=\"https://web.whatsapp.com\"");
+    //add_app_icon("Notes","accessories-text-editor-symbolic","chromium --app=\"http://24.3.110.119/editor\"");
+    //add_app_icon("Outlook","outlook","chromium --app=\"https://owa.linkcorp.com/owa\"");
+    //add_app_icon("Spark","chromium","chromium --app=\"https://web.ciscospark.com\"");
     
     do_icon_layout();
 
